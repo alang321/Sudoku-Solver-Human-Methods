@@ -22,10 +22,10 @@ class Sudoku:
     possibleValues = [[True if k>0 else 9 for k in range(10)] for j in range(81)] #possible values for each cell, each cell has 10 values, one bool if each 1 to 9 values is possible, and one number keeping track of how many possibilities there are for this cell
     emptyCells = 81 # how many cells dont have a value
     #guessing forks
-
     forkSnapshot = [None] * 81 #snapshot of values saved at guessing forks: guesses left, cell index of guess, possible values, empty cells, set values
     lastForkIndex = -1
-    maxSolutions = 10
+    maxSolutions = 100
+    numberOfSolutions = 0 # number of solutions that have been determined
     solutions = [None] * maxSolutions
 
     #list with sublist of all indices that intersect
@@ -55,9 +55,10 @@ class Sudoku:
     #region set Sudoku
 
     #parse values as string from top left row first and subgrid layout
-    def setSudoku(self, sudoku, subgrid=defaultSubgrid):
+    def setSudoku(self, sudoku, subgrid=defaultSubgrid, miscIntersectionIndices=[]):
         self.parseValues(sudoku)
         self.praseSubgridIntersections(subgrid)
+        self.miscIndices = miscIntersectionIndices
         self.setupPossibilities()
 
     def parseValues(self, values):
@@ -107,7 +108,15 @@ class Sudoku:
         return "Initial Values: \n" + Sudoku.setvaluesToString(self.initialSetValues)
 
     def solvedToString(self):
-        return "Solved Sudoku: \n" + Sudoku.setvaluesToString(self.setValues)
+        if self.numberOfSolutions == 0:
+            return "No solutions have been found yet"
+
+        returnString = str(self.numberOfSolutions) + " Solutions have been determined (Limit of " + str(self.maxSolutions) + "):\n"
+        for i in range(0, self.numberOfSolutions):
+            returnString += "Solution " + str(i+1) + ":\n"
+            returnString += Sudoku.setvaluesToString(self.solutions[i])
+            returnString += "\n"
+        return returnString
 
     def totalPossibilitiesToString(self):
 
@@ -171,11 +180,19 @@ class Sudoku:
 
             # set cell values that are determined by possibility elimination
             if self.setDeterminedCellValues():
+
+                #if sudoku solved, add solution to table and check for more solutions
+                if self.emptyCells == 0 and self.numberOfSolutions < self.maxSolutions:
+                    self.solutions[self.numberOfSolutions] = self.setValues.copy()
+                    self.numberOfSolutions += 1
+                    if not self.nextGuess():
+                        break
+
                 continue
 
             # take a guess if no value is determined
-            self.guess()
-
+            if not self.guess():
+                break
 
     #region Possibility elimination
 
@@ -274,11 +291,14 @@ class Sudoku:
 
         #wrong guess revert to old
         if minIndex == -1:#if there are empty cells with 0 possibilities a wrong guess has occurred
-            self.nextGuess()
-            return
+            if self.nextGuess():
+                return True
+            else:
+                return False
 
         #new guess
         self.newFork(minIndex)
+        return True
 
     def nextGuess(self):
         for i in range(self.lastForkIndex, -1, -1):
@@ -287,7 +307,7 @@ class Sudoku:
                 self.loadSnapshot(self.forkSnapshot[i])
                 self.forkSnapshot[i][0] -= 1
                 self.setCell(self.forkSnapshot[i][1], self.forkSnapshot[self.lastForkIndex][2][self.forkSnapshot[self.lastForkIndex][0]])
-                print("WRONG GUESS!! guessed", self.forkSnapshot[self.lastForkIndex][2][self.forkSnapshot[self.lastForkIndex][0]], "in cell:", self.forkSnapshot[i][1])
+                #print("WRONG GUESS!! guessed", self.forkSnapshot[self.lastForkIndex][2][self.forkSnapshot[self.lastForkIndex][0]], "in cell:", self.forkSnapshot[i][1], ", now ", self.emptyCells, "empty cells left")
                 return True
         return False #if no fork where possible guesses exist, return False (invalid sudoku)
 
@@ -298,7 +318,7 @@ class Sudoku:
 
         self.forkSnapshot[self.lastForkIndex][0] -= 1
         self.setCell(index, self.forkSnapshot[self.lastForkIndex][2][self.forkSnapshot[self.lastForkIndex][0]])
-        print("guessed", self.forkSnapshot[self.lastForkIndex][2][self.forkSnapshot[self.lastForkIndex][0]], "in cell:", index)
+        #print("guessed", self.forkSnapshot[self.lastForkIndex][2][self.forkSnapshot[self.lastForkIndex][0]], "in cell:", index)
 
     #always taken before value is set
     def createSnapshot(self, guessIndex):
@@ -327,17 +347,48 @@ class Sudoku:
 medium = "009750000000000000005382000010000003002000908406000000900040130700006549000200000"
 extreme = "950010087430000091008000400000807000500040003000603000004000700890000052710090048"
 multiplePossibilities = "950010087430000091008000400000807000500040003000603000004000700890000050710090048" #9 possible solutions
+onlyonenumber = "100000000000000000000000000000000000000000000000000000000000000000000000000000000"
+impossible = "950010087430000091008000408000807000500040003000603000004000700890000052710090048" #8 column intersection on column 9
+
+squiggly1 = "500603027900000000000900000200000501000000000109000002000001000000000008820305006"
+squiggly1Subgrid =   [0, 0, 0, 0, 1, 1, 1, 1, 1,
+                      2, 0, 1, 1, 1, 3, 1, 3, 3,
+                      2, 0, 0, 0, 3, 3, 3, 3, 4,
+                      2, 0, 2, 3, 3, 4, 4, 4, 4,
+                      2, 2, 2, 2, 4, 4, 5, 5, 5,
+                      6, 2, 6, 4, 4, 5, 5, 7, 5,
+                      6, 6, 6, 8, 8, 8, 7, 7, 5,
+                      6, 8, 8, 8, 7, 7, 7, 5, 5,
+                      6, 6, 6, 8, 8, 8, 7, 7, 7]
+
+squiggly4439b = "000900800800005790030700908000000070097506430040000000302004010076100004009007000"
+squiggly4439bSubgrid =   [0, 0, 0, 0, 1, 1, 1, 2, 2,
+                          0, 0, 0, 0, 1, 1, 1, 2, 2,
+                          0, 3, 3, 3, 1, 1, 1, 2, 2,
+                          3, 3, 3, 3, 4, 4, 2, 2, 2,
+                          3, 3, 4, 4, 4, 4, 4, 5, 5,
+                          6, 6, 6, 4, 4, 5, 5, 5, 5,
+                          6, 6, 7, 7, 7, 5, 5, 5, 8,
+                          6, 6, 7, 7, 7, 8, 8, 8, 8,
+                          6, 6, 7, 7, 7, 8, 8, 8, 8]
 
 sudoku1 = Sudoku()
 
-sudoku1.setSudoku(multiplePossibilities)
+sudoku1.setSudoku(medium)
+
+
 
 sudoku1.solve()
 
-print(sudoku1.totalPossibilitiesToString())
 print(sudoku1.initialToString())
 print(sudoku1.solvedToString())
 
+#possibility test
+#sudoku1.eliminatePossibilities()
+
+#print(sudoku1.initialToString())
+#for i in range(1, 10):
+#    print(sudoku1.specificPossibilitiesToString(i))
 
 
 
