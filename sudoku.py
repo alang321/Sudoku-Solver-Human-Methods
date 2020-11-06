@@ -70,9 +70,9 @@ class Sudoku:
     #region set Sudoku
 
     #parse values as string from top left row first and subgrid layout
-    def setSudoku(self, sudoku, subgrid=defaultSubgrid, miscIntersectionIndices=[]):
+    def setSudoku(self, sudoku, subgrid=defaultSubgrid, miscIntersections=[]):
         self.parseValues(sudoku)
-        self.miscIndices = miscIntersectionIndices
+        self.miscIndices = miscIntersections
         self.setupIntersections(subgrid)
         self.resetPossibilities()
 
@@ -419,9 +419,26 @@ squiggly4439bSubgrid =   [0, 0, 0, 0, 1, 1, 1, 2, 2,
                           6, 6, 7, 7, 7, 8, 8, 8, 8,
                           6, 6, 7, 7, 7, 8, 8, 8, 8]
 
+#https://puzzlephil.com/resources/non-standard-raetsel/sudoku-varianten/pdf/ExtraRegions-Sudoku.pdf
+#https://puzzlephil.com/resources/non-standard-raetsel/sudoku-varianten/pdf/ExtraRegions-Sudoku_loesung.pdf
+extraregions = "100040008000080000009060700000070000027000640004000300000000000000010000040906020"
+extraregionsmisc =   [[1, 2, 3, 12, 21, 30, 29, 28, 19],
+                      [17, 26, 35, 34, 33, 32, 23, 14, 15],
+                      [63, 54, 45, 46, 47, 48, 57, 66, 65],
+                      [79, 78, 77, 68, 59, 50, 51, 52, 61]]
+#sudoku1.setSudoku(extraregions, miscIntersections=extraregionsmisc)
+
+#https://sudokuschwer.com/x-sudoku/answer.php?id=NGTuA1wXNiznEY1uO1QO0O0OO0O0O
+diagonal = "040000200500007000981003040009000700000500000300002000000085002700001050000694070"
+diagonalmisc =   [[0, 10, 20, 30, 40, 50, 60, 70, 80],
+                  [8, 16, 24, 32, 40, 48, 56, 64, 72]]
+#sudoku1.setSudoku(diagonal, miscIntersections=diagonalmisc)
+
+
+
 sudoku1 = Sudoku()
 
-sudoku1.setSudoku(squiggly1, squiggly1Subgrid)
+sudoku1.setSudoku(diagonal, miscIntersections=diagonalmisc)
 
 sudoku1.solve()
 
