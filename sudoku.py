@@ -1,8 +1,10 @@
 from itertools import count
 import random
-
+import time
 
 class Sudoku:
+    #region variables
+
     #default subgrid layout, is used if no other layout is specified
     defaultSubgrid = [0, 0, 0, 1, 1, 1, 2, 2, 2,
                       0, 0, 0, 1, 1, 1, 2, 2, 2,
@@ -17,7 +19,7 @@ class Sudoku:
     #simple 9x9 list of
     initialSetValues = [] #initial input set values, 0 if not set
 
-    #solving
+    #region solving variables
     currentSetCellValues = [] #all the values currently set in the sudoku grid, 0 if not set
     possibleValuesCell = [] #possible values for each cell, each cell has 10 values, one bool if each 1 to 9 values is possible, extra field so value can be used as index
     cellPossibilityCounter = [] #counts how many values are possible in each cell
@@ -30,8 +32,10 @@ class Sudoku:
     numberOfSolutions = 0 # number of solutions that have been determined
     sudokuSolutions = [None] * maxSolutions
 
-    #default value for cells that are already set
-    setValueCellPossibilities = [False]*10
+    setValueCellPossibilities = [False]*10#default value for cells that are already set
+    #endregion
+
+    #region Intersection variables
 
     #list with sublist of all indices that intersect
     subcellIndices = []
@@ -58,6 +62,10 @@ class Sudoku:
     intersectionBlocks = []
 
     cellIntersectionBlocksIndices = [[] for _ in range(81)] # All Intersection blocks that contain a certain cell
+
+    #endregion
+
+    #endregion
 
     #region set Sudoku
 
@@ -186,8 +194,8 @@ class Sudoku:
 
     def solve(self):
 
+        start = time.time()
         while self.emptyCells > 0:
-            #
 
             #eliminate possibilities
             self.eliminatePossibilities()
@@ -208,6 +216,9 @@ class Sudoku:
             if not self.guess():
                 break
 
+        end = time.time()
+        print("Runtime", (end - start))
+
     #region Possibility elimination
 
     def eliminatePossibilities(self):
@@ -220,6 +231,17 @@ class Sudoku:
                     for cell in self.intersectionBlocks[intersectionBlockIndex]:
                         self.removePossibilityCell(cell, self.currentSetCellValues[currentCell])
         return
+
+    # possibility elimination
+
+    # intersection elimination
+    # Omission
+    # Naked Pairs
+    # Naked Triplets & Quads
+    # Hidden Pairs Triplets & Quads
+    # X-Wing
+    # Swordfish
+    # XY Wing
 
     #remove the possibility of a certain value from a cell, this entails the lowering of the number total possible values in this cell aswell as the intersection block
     def removePossibilityCell(self, cell, value):
@@ -363,6 +385,12 @@ class Sudoku:
     #endregion
 
 
+
+
+
+
+#testing
+
 medium = "009750000000000000005382000010000003002000908406000000900040130700006549000200000"
 extreme = "950010087430000091008000400000807000500040003000603000004000700890000052710090048"
 multiplePossibilities = "950010087430000091008000400000807000500040003000603000004000700890000050710090048" #9 possible solutions
@@ -403,28 +431,9 @@ print(sudoku1.initialToString())
 print(sudoku1.solvedToString())
 
 
-#possibility test
-#print(sudoku1.totalPossibilitiesToString())
-#sudoku1.eliminatePossibilities()
-#print(sudoku1.totalPossibilitiesToString())
-
-#print(sudoku1.initialToString())
-#for i in range(1, 3):
-#    print(sudoku1.specificPossibilitiesToString(i))
 
 
-#solving functions sorted by priority
 
-#possibility elimination
-
-#intersection elimination
-#Omission
-#Naked Pairs
-#Naked Triplets & Quads
-#Hidden Pairs Triplets & Quads
-#X-Wing
-#Swordfish
-#XY Wing
 
 
 
