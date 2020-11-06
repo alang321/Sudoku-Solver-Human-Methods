@@ -18,15 +18,20 @@ class Sudoku:
     initialSetValues = [] #initial input set values, 0 if not set
 
     #solving
-    setValues = [] #set values, 0 if not set
-    possibleValues = [[True if k>0 else 9 for k in range(10)] for j in range(81)] #possible values for each cell, each cell has 10 values, one bool if each 1 to 9 values is possible, and one number keeping track of how many possibilities there are for this cell
+    currentSetCellValues = [] #all the values currently set in the sudoku grid, 0 if not set
+    possibleValuesCell = [] #possible values for each cell, each cell has 10 values, one bool if each 1 to 9 values is possible, extra field so value can be used as index
+    cellPossibilityCounter = [] #counts how many values are possible in each cell
+    intersectionBlockPossibilityCounter = []
     emptyCells = 81 # how many cells dont have a value
     #guessing forks
     forkSnapshot = [None] * 81 #snapshot of values saved at guessing forks: guesses left, cell index of guess, possible values, empty cells, set values
     lastForkIndex = -1
     maxSolutions = 100
     numberOfSolutions = 0 # number of solutions that have been determined
-    solutions = [None] * maxSolutions
+    sudokuSolutions = [None] * maxSolutions
+
+    #default value for cells that are already set
+    setValueCellPossibilities = [False]*10
 
     #list with sublist of all indices that intersect
     subcellIndices = []
@@ -50,16 +55,18 @@ class Sudoku:
                 [8, 17, 26, 35, 44, 53, 62, 71, 80]]
     miscIndices = []
 
-    IntersectionsIndices = [subcellIndices, rowIndeces, colIndices, miscIndices]
+    intersectionBlocks = []
+
+    cellIntersectionBlocksIndices = [[] for _ in range(81)] # All Intersection blocks that contain a certain cell
 
     #region set Sudoku
 
     #parse values as string from top left row first and subgrid layout
     def setSudoku(self, sudoku, subgrid=defaultSubgrid, miscIntersectionIndices=[]):
         self.parseValues(sudoku)
-        self.praseSubgridIntersections(subgrid)
         self.miscIndices = miscIntersectionIndices
-        self.setupPossibilities()
+        self.setupIntersections(subgrid)
+        self.resetPossibilities()
 
     def parseValues(self, values):
         # raise exception if the parsed sudoku does not have 81 cells
@@ -72,10 +79,10 @@ class Sudoku:
             if int(i) != 0:
                 self.emptyCells -= 1
 
-        self.setValues = self.initialSetValues.copy()
+        self.currentSetCellValues = self.initialSetValues.copy()
         return
 
-    def praseSubgridIntersections(self, subgrid):
+    def setupIntersections(self, subgrid):
         # subgrid Indices
         for cellIndex in count(0):
             # gets the intersections of
@@ -90,14 +97,21 @@ class Sudoku:
                 raise Exception("Each subcell has to contain exactly nine fields")
 
             self.subcellIndices.append(cellIndices)
-        return
 
-    def setupPossibilities(self):
-        for index, value in enumerate(self.possibleValues):
-            if self.setValues[index] != 0:
-                value[0] = 0
-                for i in range(1, 10):
-                    value[i] = False
+        #all intersection block in a list
+        for block in self.subcellIndices:
+            self.intersectionBlocks.append(block)
+        for block in self.rowIndeces:
+            self.intersectionBlocks.append(block)
+        for block in self.colIndices:
+            self.intersectionBlocks.append(block)
+        for block in self.miscIndices:
+            self.intersectionBlocks.append(block)
+
+        #setup a list of cells each intersection block contains
+        for index, block in enumerate(self.intersectionBlocks):
+            for cell in block:
+                self.cellIntersectionBlocksIndices[cell].append(index)
         return
 
     #endregion
@@ -114,7 +128,7 @@ class Sudoku:
         returnString = str(self.numberOfSolutions) + " Solutions have been determined (Limit of " + str(self.maxSolutions) + "):\n"
         for i in range(0, self.numberOfSolutions):
             returnString += "Solution " + str(i+1) + ":\n"
-            returnString += Sudoku.setvaluesToString(self.solutions[i])
+            returnString += Sudoku.setvaluesToString(self.sudokuSolutions[i])
             returnString += "\n"
         return returnString
 
@@ -125,7 +139,7 @@ class Sudoku:
             for columnns in range(0, 9):
                 if (columnns) % 3 == 0:
                     sudokuString += " "
-                sudokuString += str(self.possibleValues[rows * 9 + columnns][0])
+                sudokuString += str(self.cellPossibilityCounter[rows * 9 + columnns])
             sudokuString += "\n"
 
             if (rows + 1) % 3 == 0:
@@ -139,7 +153,7 @@ class Sudoku:
             for columnns in range(0, 9):
                 if (columnns) % 3 == 0:
                     sudokuString += " "
-                valuePossibilityBool = self.possibleValues[rows * 9 + columnns][value]
+                valuePossibilityBool = self.possibleValuesCell[rows * 9 + columnns][value]
                 if valuePossibilityBool:
                     sudokuString += "1"
                 else:
@@ -183,7 +197,7 @@ class Sudoku:
 
                 #if sudoku solved, add solution to table and check for more solutions
                 if self.emptyCells == 0 and self.numberOfSolutions < self.maxSolutions:
-                    self.solutions[self.numberOfSolutions] = self.setValues.copy()
+                    self.sudokuSolutions[self.numberOfSolutions] = self.currentSetCellValues.copy()
                     self.numberOfSolutions += 1
                     if not self.nextGuess():
                         break
@@ -201,14 +215,40 @@ class Sudoku:
 
     def intersectionElimination(self):
         for currentCell in range(81):
-            if self.setValues[currentCell] != 0: #if the cell is not empty
-                for type in self.IntersectionsIndices:
-                    for intersectionBlock in type:
-                        if currentCell in intersectionBlock:#if the current cell is part of the intersection block
-                            for cell in intersectionBlock:
-                                if self.possibleValues[cell][self.setValues[currentCell]]:
-                                    self.possibleValues[cell][0] -= 1
-                                    self.possibleValues[cell][self.setValues[currentCell]] = False
+            if self.currentSetCellValues[currentCell] != 0: #if the cell is not empty
+                for intersectionBlockIndex in self.cellIntersectionBlocksIndices[currentCell]:
+                    for cell in self.intersectionBlocks[intersectionBlockIndex]:
+                        self.removePossibilityCell(cell, self.currentSetCellValues[currentCell])
+        return
+
+    #remove the possibility of a certain value from a cell, this entails the lowering of the number total possible values in this cell aswell as the intersection block
+    def removePossibilityCell(self, cell, value):
+        if self.possibleValuesCell[cell][value]:
+            self.possibleValuesCell[cell][value] = False
+            self.cellPossibilityCounter[cell] -= 1
+
+            for blockIndex in self.cellIntersectionBlocksIndices[cell]:
+                self.intersectionBlockPossibilityCounter[blockIndex][value] -= 1
+        return
+
+    #reset possibility counting arrays
+    def resetPossibilities(self):
+        self.possibleValuesCell = [[True for _ in range(10)] for _ in range(81)]
+        self.cellPossibilityCounter = [9 for _ in range(81)]
+        self.intersectionBlockPossibilityCounter = [[9 for _ in range(10)] for _ in range(len(self.intersectionBlocks))]
+        self.removePossibilitiesSetValues()
+
+
+    #remove possibilities of set values
+    def removePossibilitiesSetValues(self):
+        for cell in range(81):
+            if self.currentSetCellValues[cell] != 0:
+                self.cellPossibilityCounter[cell] = 0
+                self.possibleValuesCell[cell] = self.setValueCellPossibilities
+                for blockIndex in self.cellIntersectionBlocksIndices[cell]:
+                    self.intersectionBlockPossibilityCounter[blockIndex][self.currentSetCellValues[cell]] = 0
+                    for value in range(1, 10): # lower the number of cells where value is possible by 1 in the cell where a value is already set
+                        self.intersectionBlockPossibilityCounter[blockIndex][value] -= 1
         return
 
     #endregion
@@ -220,55 +260,36 @@ class Sudoku:
             return True
         if self.hiddenSingles():
             return True
+        return False
 
     def loneSingles(self):
-        for cell, cellPossibilities in enumerate(self.possibleValues):
-            if cellPossibilities[0] == 1:
+        for cell, cellPossibilityCount in enumerate(self.cellPossibilityCounter):
+            if cellPossibilityCount == 1:
                 for value in range(1, 10):
-                    if cellPossibilities[value]:
+                    if self.possibleValuesCell[cell][value]:
                         self.setCell(cell, value)
                         #print("\nlone", value, " in ", cell)
                         return True
         return False
 
     def hiddenSingles(self):
-        for type in self.IntersectionsIndices:
-            for intersectionBlock in type:
-                #every value that is a possibility in the intersection block gets checked if its a hidden Single
-                possibilityCounter = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] #counter for each value, one extra value so the value can be used as the index
-
-                #remove cells with values in them from consideration
-                consideredCells = intersectionBlock.copy()
-                consideredValues = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-                for cell in intersectionBlock:
-                    if self.setValues[cell] != 0:
-                        consideredCells.remove(cell)
-                        consideredValues.remove(self.setValues[cell])
-
-                # count number occurrences of considered values in considered cells
-                for cell in consideredCells:
-                    for value in consideredValues:
-                        if self.possibleValues[cell][value]:
-                            possibilityCounter[value] += 1
-
-                # check if there is a hidden single
-                if 1 in possibilityCounter:
-                    value = possibilityCounter.index(1)
-                    for cell in consideredCells:
-                        if self.possibleValues[cell][value]:
+        for blockIndex, possibilitiesPerValue in enumerate(self.intersectionBlockPossibilityCounter):
+            for value in range(1, 10):
+                if possibilitiesPerValue[value] == 1:
+                    for cell in self.intersectionBlocks[blockIndex]:
+                        if self.possibleValuesCell[cell][value]:
                             self.setCell(cell, value)
                             #print("\nhidden", value, " in ", cell)
                             return True
         return False
 
-    def setCell(self, index, value):
-        if self.setValues[index] == 0: #only if the cell is empty
-            self.setValues[index] = value #set the cell to spcified value
+    def setCell(self, cell, value):
+        if self.currentSetCellValues[cell] == 0: #only if the cell is empty
+            self.currentSetCellValues[cell] = value #set the cell to spcified value
 
             # no values can now be possible in this cell
-            self.possibleValues[index][0] = 0
-            for i in range(1, 10):
-                self.possibleValues[index][i] = False
+            for value in range(1, 10):
+                self.removePossibilityCell(cell, value)
 
             #one less remaining empty cell
             self.emptyCells -= 1
@@ -284,9 +305,9 @@ class Sudoku:
         minPossible = 10
         minIndex = -1
 
-        for index, possibilities in enumerate(self.possibleValues):
-            if possibilities[0] != 0 and possibilities[0] < minPossible:
-                minPossible = possibilities[0]
+        for index, possibilityCount in enumerate(self.cellPossibilityCounter):
+            if possibilityCount != 0 and possibilityCount < minPossible:
+                minPossible = possibilityCount
                 minIndex = index
 
         #wrong guess revert to old
@@ -324,19 +345,17 @@ class Sudoku:
     def createSnapshot(self, guessIndex):
         possibleValues = [1, 2, 3, 4, 5, 6, 7, 8, 9]
         for i in range(1, 10):
-            if not self.possibleValues[guessIndex][i]:
+            if not self.possibleValuesCell[guessIndex][i]:
                 possibleValues.remove(i)
         random.shuffle(possibleValues)
-        valueSnapshot = [len(possibleValues), guessIndex, possibleValues, self.emptyCells, self.setValues.copy()]
+        valueSnapshot = [len(possibleValues), guessIndex, possibleValues, self.emptyCells, self.currentSetCellValues.copy()]
         return valueSnapshot
 
     def loadSnapshot(self, snapshot):
         self.emptyCells = snapshot[3]
-        self.setValues = snapshot[4].copy()
+        self.currentSetCellValues = snapshot[4].copy()
 
-        #todo : better possibility
-        self.possibleValues = [[True if k > 0 else 9 for k in range(10)] for j in range(81)]
-        self.setupPossibilities()
+        self.resetPossibilities()
         return
 
     #endregion
@@ -374,22 +393,24 @@ squiggly4439bSubgrid =   [0, 0, 0, 0, 1, 1, 1, 2, 2,
 
 sudoku1 = Sudoku()
 
-sudoku1.setSudoku(medium)
-
-
+sudoku1.setSudoku(squiggly1, squiggly1Subgrid)
 
 sudoku1.solve()
+
+
 
 print(sudoku1.initialToString())
 print(sudoku1.solvedToString())
 
+
 #possibility test
+#print(sudoku1.totalPossibilitiesToString())
 #sudoku1.eliminatePossibilities()
+#print(sudoku1.totalPossibilitiesToString())
 
 #print(sudoku1.initialToString())
-#for i in range(1, 10):
+#for i in range(1, 3):
 #    print(sudoku1.specificPossibilitiesToString(i))
-
 
 
 #solving functions sorted by priority
